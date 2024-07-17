@@ -1,4 +1,4 @@
-batch_size: 128
+batch_size: 256 #128
 epochs: 15 # 80
 lr: 0.01 # 0.001
 

@@ -8,6 +8,9 @@ from omegaconf import DictConfig
 import wandb
 from termcolor import cprint
 from tqdm import tqdm
+import apex
+# from torch_optimizer import Lamb
+from torch.cuda.amp import GradScaler, autocast
 
 from src.datasets import ThingsMEGDataset
 from src.models import BasicConvClassifier
@@ -47,7 +50,8 @@ def run(args: DictConfig):
     # ------------------
     #     Optimizer
     # ------------------
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    #optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = apex.optimizers.FusedLAMB(model.parameters(), lr=args.lr)
 
     # ------------------
     #   Start training
@@ -56,6 +60,8 @@ def run(args: DictConfig):
     accuracy = Accuracy(
         task="multiclass", num_classes=train_set.num_classes, top_k=10
     ).to(args.device)
+    
+    scaler = GradScaler()
       
     for epoch in range(args.epochs):
         print(f"Epoch {epoch+1}/{args.epochs}")
@@ -64,17 +70,32 @@ def run(args: DictConfig):
         
         model.train()
         for X, y, subject_idxs in tqdm(train_loader, desc="Train"):
+#             X, y = X.to(args.device), y.to(args.device)
+
+#             y_pred = model(X)
+            
+#             loss = F.cross_entropy(y_pred, y)
+#             train_loss.append(loss.item())
+            
+#             optimizer.zero_grad()
+#             loss.backward()
+#             optimizer.step()
+            
+#             acc = accuracy(y_pred, y)
+#             train_acc.append(acc.item())
             X, y = X.to(args.device), y.to(args.device)
 
-            y_pred = model(X)
-            
-            loss = F.cross_entropy(y_pred, y)
-            train_loss.append(loss.item())
-            
             optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            
+
+            with autocast():  
+                y_pred = model(X)
+                loss = F.cross_entropy(y_pred, y)
+
+            scaler.scale(loss).backward()  
+            scaler.step(optimizer)  
+            scaler.update()
+
+            train_loss.append(loss.item())
             acc = accuracy(y_pred, y)
             train_acc.append(acc.item())
 
