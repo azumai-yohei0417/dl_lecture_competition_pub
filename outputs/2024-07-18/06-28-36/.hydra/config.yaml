@@ -1,0 +1,9 @@
+batch_size: 256
+epochs: 15
+lr: 0.01
+device: cuda:0
+num_workers: 4
+seed: 1234
+use_wandb: false
+data_dir: data
+model_path: model_best_final_15.pt
